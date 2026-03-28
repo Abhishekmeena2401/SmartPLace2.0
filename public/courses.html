@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Courses | SmartPlace</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    /* Filter pills */
+    .filter-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 28px;
+    }
+    .filter-btn {
+      padding: 6px 16px; border-radius: 20px;
+      border: 1px solid var(--border); background: var(--bg);
+      font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      transition: var(--transition); font-family: inherit; color: var(--muted);
+    }
+    .filter-btn:hover, .filter-btn.active {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+
+    /* Grid */
+    .course-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .course-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 26px;
+      display: flex; flex-direction: column; gap: 10px;
+      box-shadow: var(--shadow); transition: var(--transition);
+    }
+    .course-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(26,86,219,.1);
+    }
+
+    .skill-badge {
+      align-self: flex-start; padding: 4px 12px;
+      border-radius: 20px; font-size: 0.7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      background: var(--accent-lt); color: var(--accent);
+      border: 1px solid #c7d9ff;
+    }
+
+    .course-title {
+      font-size: 1rem; font-weight: 700; line-height: 1.4;
+      color: var(--text); min-height: 2.8em;
+    }
+
+    .platform {
+      font-size: 0.8rem; color: var(--muted); display: flex;
+      align-items: center; gap: 5px;
+    }
+
+    .card-footer {
+      margin-top: auto; display: flex; justify-content: space-between;
+      align-items: center; padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .price { font-size: 1.1rem; font-weight: 700; }
+    .enroll-btn {
+      padding: 9px 18px; background: var(--accent); color: #fff;
+      text-decoration: none; border-radius: 8px; font-size: 0.8rem;
+      font-weight: 600; transition: var(--transition);
+    }
+    .enroll-btn:hover { background: #1546b0; }
+
+    .empty { text-align:center; padding:60px 20px; color:var(--muted); font-size:0.9rem; }
+    .error-msg { color: var(--danger); font-size: 0.875rem; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar" id="navbar"></nav>
+<div class="overlay" id="overlay"></div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+    <div class="page-header">
+      <h1>Learning Hub</h1>
+      <p>Curated courses from Udemy, Coursera, and YouTube for high-paying roles.</p>
+    </div>
+
+    <div class="filter-row" id="filterRow">
+      <button class="filter-btn active" data-skill="all" onclick="filterCourses('all', this)">All</button>
+    </div>
+
+    <div id="errorMsg" class="error-msg"></div>
+    <div class="course-grid" id="courseGrid">
+      <div class="empty">Loading courses…</div>
+    </div>
+  </main>
+</div>
+
+<script src="nav.js"></script>
+<script>
+let allCourses  = [];
+let activeSkill = 'all';
+
+async function loadCourses() {
+  try {
+    const res = await fetch('/api/courses');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.length) throw new Error('No courses found in database.');
+    allCourses = data;
+    buildFilters();
+    renderCourses();
+  } catch (err) {
+    document.getElementById('errorMsg').textContent = '⚠️ ' + err.message + ' — connect your backend and MongoDB.';
+    document.getElementById('courseGrid').innerHTML = '<div class="empty">No courses to display.</div>';
+  }
+}
+
+function buildFilters() {
+  const skills = [...new Set(allCourses.map(c => c.skill).filter(Boolean))];
+  const row = document.getElementById('filterRow');
+  skills.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.dataset.skill = s;
+    btn.textContent = s;
+    btn.onclick = () => filterCourses(s, btn);
+    row.appendChild(btn);
+  });
+}
+
+function filterCourses(skill, btn) {
+  activeSkill = skill;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCourses();
+}
+
+function renderCourses() {
+  const list = activeSkill === 'all'
+    ? allCourses
+    : allCourses.filter(c => c.skill === activeSkill);
+
+  const grid = document.getElementById('courseGrid');
+  if (!list.length) { grid.innerHTML = '<div class="empty">No courses found for this skill.</div>'; return; }
+
+  grid.innerHTML = list.map(c => `
+    <div class="course-card">
+      <span class="skill-badge">${c.skill || 'General'}</span>
+      <h3 class="course-title">${c.title || 'Untitled Course'}</h3>
+      <div class="platform">🌐 ${c.platform || 'Unknown Platform'}</div>
+      <div class="card-footer">
+        <span class="price">${c.price || 'Free'}</span>
+        <a href="${c.link && c.link.startsWith('http') ? c.link : '#'}"
+           target="_blank" class="enroll-btn">Explore →</a>
+      </div>
+    </div>
+  `).join('');
+}
+
+loadCourses();
+</script>
+</body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Technical Quiz | SmartPlace</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    /* Skill selection */
+    .skill-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 14px; max-width: 680px;
+    }
+
+    .skill-btn {
+      padding: 20px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+      text-align: center; cursor: pointer;
+      transition: var(--transition);
+      box-shadow: var(--shadow);
+      font-family: inherit;
+    }
+    .skill-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-lt);
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(26,86,219,.12);
+    }
+    .skill-btn .icon { font-size: 1.6rem; margin-bottom: 8px; }
+    .skill-btn .name { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+
+    /* Quiz section */
+    .quiz-header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 28px;
+    }
+    .back-btn {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 14px; cursor: pointer;
+      font-size: 0.82rem; font-weight: 600; color: var(--muted);
+      transition: var(--transition); font-family: inherit;
+    }
+    .back-btn:hover { background: var(--border); color: var(--text); }
+
+    .progress-bar {
+      background: var(--surface); border-radius: 4px; height: 4px;
+      margin-bottom: 28px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; background: var(--accent);
+      border-radius: 4px; transition: width .4s ease;
+    }
+
+    .question-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px;
+      margin-bottom: 20px; box-shadow: var(--shadow);
+      animation: fadeUp .25s ease;
+    }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+    .q-num { font-size: 0.75rem; font-weight: 600; color: var(--muted); margin-bottom: 10px; }
+    .q-text { font-size: 0.95rem; font-weight: 600; line-height: 1.5; margin-bottom: 20px; }
+
+    .options { display: flex; flex-direction: column; gap: 10px; }
+    .option-label {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-radius: 8px;
+      border: 1px solid var(--border);
+      cursor: pointer; transition: var(--transition);
+      font-size: 0.875rem;
+    }
+    .option-label:hover { border-color: var(--accent); background: var(--accent-lt); }
+    .option-label input[type="radio"] { accent-color: var(--accent); }
+
+    .submit-btn {
+      margin-top: 24px; width: 100%; padding: 14px;
+      background: var(--accent); color: #fff; border: none;
+      border-radius: 8px; font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; transition: var(--transition); font-family: inherit;
+    }
+    .submit-btn:hover { background: #1546b0; }
+
+    /* Results */
+    .score-banner {
+      background: var(--accent-lt); border: 1px solid #c7d9ff;
+      border-radius: var(--radius); padding: 28px; text-align: center;
+      margin-bottom: 28px;
+    }
+    .score-banner .big  { font-size: 3rem; font-weight: 700; color: var(--accent); }
+    .score-banner .sub  { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+
+    .result-item {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px; margin-bottom: 14px;
+    }
+    .result-item .q   { font-size: 0.875rem; font-weight: 600; margin-bottom: 10px; }
+    .result-item .ans { font-size: 0.83rem; margin-top: 4px; }
+    .correct { color: #16a34a; font-weight: 600; }
+    .wrong   { color: #dc2626; font-weight: 600; }
+
+    .retry-btn {
+      margin-top: 20px; width: 100%; padding: 14px;
+      background: var(--text); color: #fff; border: none;
+      border-radius: 8px; font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; transition: var(--transition); font-family: inherit;
+    }
+    .retry-btn:hover { opacity: .85; }
+
+    .hidden { display: none !important; }
+    .loading { text-align:center; color: var(--muted); padding: 40px 0; font-size: 0.875rem; }
+    .error   { color: var(--danger); font-size: 0.875rem; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar" id="navbar"></nav>
+<div class="overlay" id="overlay"></div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+
+    <!-- Skill Selection -->
+    <div id="skillSection">
+      <div class="page-header">
+        <h1>Technical Quiz</h1>
+        <p>Choose a skill and test your knowledge with 10 questions.</p>
+      </div>
+
+      <div class="skill-grid">
+        <button class="skill-btn" onclick="loadQuiz('python')"><div class="icon">🐍</div><div class="name">Python</div></button>
+        <button class="skill-btn" onclick="loadQuiz('java')"><div class="icon">☕</div><div class="name">Java</div></button>
+        <button class="skill-btn" onclick="loadQuiz('cpp')"><div class="icon">⚙️</div><div class="name">C++</div></button>
+        <button class="skill-btn" onclick="loadQuiz('javascript')"><div class="icon">🟨</div><div class="name">JavaScript</div></button>
+        <button class="skill-btn" onclick="loadQuiz('html')"><div class="icon">🌐</div><div class="name">HTML</div></button>
+        <button class="skill-btn" onclick="loadQuiz('css')"><div class="icon">🎨</div><div class="name">CSS</div></button>
+        <button class="skill-btn" onclick="loadQuiz('sql')"><div class="icon">🗃️</div><div class="name">SQL</div></button>
+        <button class="skill-btn" onclick="loadQuiz('dsa')"><div class="icon">🧮</div><div class="name">DSA</div></button>
+      </div>
+      <p class="error" id="loadError"></p>
+    </div>
+
+    <!-- Quiz -->
+    <div id="quizSection" class="hidden">
+      <div class="quiz-header">
+        <button class="back-btn" onclick="goBack()">← Back</button>
+        <h2 id="quizTitle" style="font-size:1.2rem;font-weight:700;"></h2>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div id="quizForm"></div>
+      <button class="submit-btn" onclick="submitQuiz()">Submit Quiz</button>
+    </div>
+
+    <!-- Results -->
+    <div id="resultSection" class="hidden">
+      <div class="score-banner">
+        <div class="big" id="scoreText">0/10</div>
+        <div class="sub" id="scoreMsg"></div>
+      </div>
+      <div id="resultList"></div>
+      <button class="retry-btn" onclick="restart()">← Try Another Skill</button>
+    </div>
+
+  </main>
+</div>
+
+<script src="nav.js"></script>
+<script>
+let currentQuestions = [];
+
+async function loadQuiz(skill) {
+  document.getElementById('loadError').textContent = '';
+  document.getElementById('quizForm').innerHTML = '<div class="loading">Loading questions…</div>';
+  document.getElementById('skillSection').classList.add('hidden');
+  document.getElementById('quizSection').classList.remove('hidden');
+  document.getElementById('quizTitle').textContent = skill.toUpperCase() + ' Quiz';
+  document.getElementById('progressFill').style.width = '0%';
+
+  try {
+    const res = await fetch(`/api/questions/${skill}`);
+    if (!res.ok) throw new Error(await res.text());
+    currentQuestions = await res.json();
+    if (!currentQuestions.length) throw new Error('No questions found for this skill.');
+    renderQuiz();
+  } catch (err) {
+    document.getElementById('quizSection').classList.add('hidden');
+    document.getElementById('skillSection').classList.remove('hidden');
+    document.getElementById('loadError').textContent = '⚠️ ' + err.message;
+  }
+}
+
+function renderQuiz() {
+  const total = currentQuestions.length;
+  document.getElementById('progressFill').style.width = '0%';
+
+  document.getElementById('quizForm').innerHTML = currentQuestions.map((q, i) => `
+    <div class="question-card" id="qcard${i}">
+      <div class="q-num">Question ${i + 1} of ${total}</div>
+      <div class="q-text">${q.question}</div>
+      <div class="options">
+        ${(q.options || []).map(opt => `
+          <label class="option-label">
+            <input type="radio" name="q${i}" value="${opt.replace(/"/g,'&quot;')}" onchange="updateProgress()">
+            ${opt}
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateProgress() {
+  const answered = currentQuestions.filter((_, i) =>
+    document.querySelector(`input[name="q${i}"]:checked`)
+  ).length;
+  document.getElementById('progressFill').style.width = (answered / currentQuestions.length * 100) + '%';
+}
+
+function submitQuiz() {
+  let score = 0;
+  let html = '';
+
+  currentQuestions.forEach((q, i) => {
+    const sel    = document.querySelector(`input[name="q${i}"]:checked`);
+    const user   = sel ? sel.value : 'Not attempted';
+    const isRight = user === q.answer;
+    if (isRight) score++;
+    html += `
+      <div class="result-item">
+        <div class="q">Q${i + 1}: ${q.question}</div>
+        <div class="ans">Your answer: <span class="${isRight ? 'correct' : 'wrong'}">${user}</span></div>
+        ${!isRight ? `<div class="ans">Correct answer: <span class="correct">${q.answer}</span></div>` : ''}
+      </div>
+    `;
+  });
+
+  const pct = Math.round(score / currentQuestions.length * 100);
+  document.getElementById('scoreText').textContent = `${score} / ${currentQuestions.length}`;
+  document.getElementById('scoreMsg').textContent  = pct >= 80 ? '🎉 Excellent work!' : pct >= 50 ? '👍 Good effort — keep practicing.' : '📘 Keep studying — you got this!';
+  document.getElementById('resultList').innerHTML  = html;
+
+  document.getElementById('quizSection').classList.add('hidden');
+  document.getElementById('resultSection').classList.remove('hidden');
+}
+
+function goBack() {
+  document.getElementById('quizSection').classList.add('hidden');
+  document.getElementById('skillSection').classList.remove('hidden');
+}
+
+function restart() {
+  currentQuestions = [];
+  document.getElementById('resultSection').classList.add('hidden');
+  document.getElementById('skillSection').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
