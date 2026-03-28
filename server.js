@@ -1,78 +1,75 @@
 require("dotenv").config();
-const express   = require("express");
-const mongoose  = require("mongoose");
-const multer    = require("multer");
-const pdfParse  = require("pdf-parse");   // v1.x — default export IS the function
-const axios     = require("axios");
-const cors      = require("cors");
-const path      = require("path");
+const express  = require("express");
+const mongoose = require("mongoose");
+const multer   = require("multer");
+const pdfParse = require("pdf-parse");
+const axios    = require("axios");
+const cors     = require("cors");
+const path     = require("path");
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
 
-// =======================
-// MIDDLEWARE
-// =======================
+// ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
 
-// =======================
-// STATIC FILES  (must come before routes so HTML pages are served)
-// =======================
+// ─── STATIC FILES ─────────────────────────────────────────────────────────────
+// Serves everything inside /public  (dashboard.html, index.html, etc.)
 app.use(express.static(path.join(__dirname, "public")));
 
-// =======================
-// ROOT ROUTE
-// =======================
+// ─── ROOT ROUTE ───────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "dashboard.html"));
 });
 
-// =======================
-// FILE UPLOAD  (multer v1.x API)
-// =======================
+// ─── FILE UPLOAD ──────────────────────────────────────────────────────────────
 const upload = multer({ storage: multer.memoryStorage() });
 
-// =======================
-// MONGODB CONNECTION
-// =======================
+// ─── MONGODB ──────────────────────────────────────────────────────────────────
+// CORRECT URI:  includes /smartplace  database name  +  appName
 const MONGO_URI = process.env.MONGO_URI ||
     "mongodb+srv://abhishekrbmeena_db_user:88TETLRJtWhCS7Qg@cluster0.mbrrugu.mongodb.net/smartplace?retryWrites=true&w=majority&appName=Cluster0";
 
 mongoose.connect(MONGO_URI)
-    .then(() => console.log("✅ MongoDB Connected"))
-    .catch(err => {
-        console.error("❌ MongoDB Connection Error:", err.message);
-        // Don't exit — let Render show the app even if DB is slow to connect
-    });
+    .then(() => console.log("✅ MongoDB Connected to smartplace"))
+    .catch(err => console.error("❌ MongoDB Error:", err.message));
 
-mongoose.connection.on("error", err => {
-    console.error("MongoDB runtime error:", err.message);
-});
+mongoose.connection.on("error", err =>
+    console.error("MongoDB runtime error:", err.message)
+);
 
-// =======================
-// SCHEMAS  (guard against OverwriteModelError on hot-reload)
-// =======================
-const Question = mongoose.models.Question || mongoose.model("Question",
+// ─── SCHEMAS ──────────────────────────────────────────────────────────────────
+// NOTE: collection name is passed explicitly to match your Atlas collections.
+// Your Atlas has:  "companies", "courses", "quetions"  (quetions is a typo in Atlas)
+// We map the model to the EXACT Atlas collection name using the 3rd argument.
+
+const Question = mongoose.models.Question || mongoose.model(
+    "Question",
     new mongoose.Schema({
         category: { type: String, lowercase: true, trim: true },
         question: String,
         options:  [String],
         answer:   String
-    })
+    }),
+    "quetions"   // ← exact Atlas collection name (has the typo — do NOT change)
 );
 
-const Course = mongoose.models.Course || mongoose.model("Course",
+const Course = mongoose.models.Course || mongoose.model(
+    "Course",
     new mongoose.Schema({
         title:    String,
         platform: String,
         price:    String,
         link:     String,
-        skill:    String
-    })
+        skill:    String,
+        author:   String   // extra field present in your Atlas documents
+    }),
+    "courses"    // ← exact Atlas collection name
 );
 
-const Company = mongoose.models.Company || mongoose.model("Company",
+const Company = mongoose.models.Company || mongoose.model(
+    "Company",
     new mongoose.Schema({
         name:        String,
         summary:     String,
@@ -86,69 +83,74 @@ const Company = mongoose.models.Company || mongoose.model("Company",
         rounds:      [String],
         eligibility: String,
         apply:       String
-    })
+    }),
+    "companies"  // ← exact Atlas collection name
 );
 
-// =======================
-// HEALTH CHECK
-// =======================
+// ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
     res.json({
-        status: "ok",
-        db: mongoose.connection.readyState
-        // 0=disconnected 1=connected 2=connecting 3=disconnecting
+        status : "ok",
+        db     : mongoose.connection.readyState,
+        dbName : mongoose.connection.name || "unknown"
+        // db: 1 = connected, 0 = disconnected
     });
 });
 
-// =======================
-// COURSES
-// =======================
+// ─── COURSES ──────────────────────────────────────────────────────────────────
 app.get("/api/courses", async (req, res) => {
     try {
         const data = await Course.find().lean();
+        console.log(`✅ Courses fetched: ${data.length}`);
         res.json(data);
     } catch (err) {
         console.error("Courses error:", err.message);
-        res.status(500).json({ error: "Failed to fetch courses" });
+        res.status(500).json({ error: "Failed to fetch courses: " + err.message });
     }
 });
 
-// =======================
-// QUIZ QUESTIONS
-// =======================
+// ─── QUIZ QUESTIONS ───────────────────────────────────────────────────────────
 app.get("/api/questions/:skill", async (req, res) => {
     try {
         const skill = req.params.skill.trim().toLowerCase();
-        const data  = await Question.aggregate([
+        console.log(`Fetching questions for skill: "${skill}"`);
+
+        const data = await Question.aggregate([
             { $match:  { category: skill } },
             { $sample: { size: 10 } }
         ]);
+
+        console.log(`Questions found: ${data.length}`);
+
         if (!data.length) {
-            return res.status(404).json({ error: "No questions found for: " + skill });
+            // Return all distinct categories to help debug
+            const cats = await Question.distinct("category");
+            console.log("Available categories:", cats);
+            return res.status(404).json({
+                error: `No questions found for "${skill}". Available: ${cats.join(", ")}`
+            });
         }
+
         res.json(data);
     } catch (err) {
         console.error("Questions error:", err.message);
-        res.status(500).json({ error: "Failed to fetch questions" });
+        res.status(500).json({ error: "Failed to fetch questions: " + err.message });
     }
 });
 
-// =======================
-// COMPANIES
-// =======================
+// ─── COMPANIES ────────────────────────────────────────────────────────────────
 app.get("/api/companies", async (req, res) => {
     try {
         const data = await Company.find().lean();
+        console.log(`✅ Companies fetched: ${data.length}`);
         res.json(data);
     } catch (err) {
         console.error("Companies error:", err.message);
-        res.status(500).json({ error: "Failed to fetch companies" });
+        res.status(500).json({ error: "Failed to fetch companies: " + err.message });
     }
 });
 
-// =======================
-// RESUME ANALYZER
-// =======================
+// ─── RESUME ANALYZER ──────────────────────────────────────────────────────────
 app.post("/analyze", upload.single("resume"), async (req, res) => {
     try {
         if (!req.file) {
@@ -159,7 +161,7 @@ app.post("/analyze", upload.single("resume"), async (req, res) => {
             return res.status(400).json({ error: "Only PDF files are supported" });
         }
 
-        // pdf-parse v1.x: pdfParse(buffer) returns a Promise
+        // pdf-parse v1.x — pdfParse(buffer) is the function
         const pdfData = await pdfParse(req.file.buffer);
         let text = (pdfData.text || "").trim();
 
@@ -239,9 +241,7 @@ ${text}
     }
 });
 
-// =======================
-// START SERVER
-// =======================
+// ─── START ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
 });
